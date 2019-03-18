@@ -1,6 +1,7 @@
 const Apify = require('apify');
 const util = require('util');
 const fs = require('fs');
+const moment = require('moment');
 
 Apify.main(async () => {
 
@@ -52,7 +53,6 @@ const getEventData = async ({ page, request }) => {
     const infoList = infoListToParse[0].split('\n');
 
     var contact, times, phone, recurring, admission, date, title, timestamp;
-    date = await page.$eval('.dates', el => el.innerText);
     title = await page.title();
     titleSplit = title.split('|');
     const description = titleSplit[0];
@@ -79,11 +79,23 @@ const getEventData = async ({ page, request }) => {
         }
     }
 
+    // parse date and time with momentjs
+    date = await page.$eval('.dates', el => el.innerText);
+    const dateSplit = date.split('-');
+    const timeSplit = times.split(' to ');
+    let startDate = dateSplit[0].trim().replace(',','');
+    let endDate = dateSplit[1].trim().replace(',','');
+    startDate = moment.parseZone(startDate + ' ' + timeSplit[0], 'MMM DD YYYY hh:mm a').toISOString();
+    endDate = moment.parseZone(endDate + ' ' + timeSplit[1], 'MMM DD YYYY hh:mm a').toISOString();
+
     // save details in an object
     let event = {
         url:	await page.url(),
         description:	description,
-        date:	date,
+        date:	{
+            startDate: startDate,
+            endDate: endDate
+        },
         time:	times,
         recurring:  recurring,
         place:	{
