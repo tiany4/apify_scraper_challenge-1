@@ -1,5 +1,6 @@
 const Apify = require('apify');
 const util = require('util');
+const fs = require('fs');
 
 Apify.main(async () => {
 
@@ -31,7 +32,7 @@ Apify.main(async () => {
 
 const getEventData = async ({ page, request }) => {
 
-    // parse address
+     // parse address
     // todo: parse by regex
 
     let adr = await page.$eval('.adrs', el => el.innerText);
@@ -42,14 +43,22 @@ const getEventData = async ({ page, request }) => {
     const state = adrSplitTwo[1].trim().substring(0,2);
     const zip = adrSplitTwo[1].trim().substring(adrSplitTwo[1].length-6);
 
+    // parse event details without classes
+    // store list of details in an array
     const infoListToParse = await page.evaluate(() => {
         const infoTemp = Array.from(document.querySelectorAll('.detail-c2'));
         return infoTemp.map(infolist => infolist.innerText);
     });
     const infoList = infoListToParse[0].split('\n');
 
-    var contact, times, phone, recurring, admission;
+    var contact, times, phone, recurring, admission, date, title, timestamp;
+    date = await page.$eval('.dates', el => el.innerText);
+    title = await page.title();
+    titleSplit = title.split('|');
+    const description = titleSplit[0];
+    timestamp = new Date().toISOString();
 
+    // logic to parse each line
     for (i = 0; i < infoList.length; i++) {
         switch (String(infoList[i].substring(0, infoList[i].indexOf(':')))) {
             case 'Contact':
@@ -70,10 +79,11 @@ const getEventData = async ({ page, request }) => {
         }
     }
 
+    // save details in an object
     let event = {
         url:	await page.url(),
-        description:	await page.title(),
-        date:	await page.$eval('.dates', el => el.innerText),
+        description:	description,
+        date:	date,
         time:	times,
         recurring:  recurring,
         place:	{
@@ -87,10 +97,22 @@ const getEventData = async ({ page, request }) => {
             phone:	phone,
             admission:	admission,
         },
-        timestamp:  new Date()
+        timestamp:  timestamp
     };
 
-    // Occasional error: process cannot be terminated; No noticeable bug currently
     // Log data (util is a tool that nicely formats objects in the console)
     console.log(util.inspect(event, false, null));
+
+    // save event details to file
+    // remove special characters from timestamp
+    timestamp = timestamp.replace(/[^\w\s]/g, '_');
+
+    let filename = description + timestamp + '.json';
+    fs.writeFile(filename, JSON.stringify(event), (err => {
+        if (err) throw err;
+        console.log('Event is written to ' + description + '.json');
+    }));
+
+    // Occasional error: process cannot be terminated; No noticeable bug currently
+
 };
