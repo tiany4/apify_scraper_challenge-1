@@ -7,33 +7,38 @@ Apify.main(async () => {
 
     // Get queue and enqueue first url.
     const requestQueue = await Apify.openRequestQueue();
-    await requestQueue.addRequest(new Apify.Request({ url: 'https://www.visithoustontexas.com/event/zumba-in-the-plaza/59011/' }));
+    //await requestQueue.addRequest(new Apify.Request({url: 'https://www.visithoustontexas.com/event/zumba-in-the-plaza/59011/'}));
+    await requestQueue.addRequest(new Apify.Request({url: 'https://www.visithoustontexas.com/events'}));
+    // url to grab event until end of 2019
+    // https://www.visithoustontexas.com/events/?endDate=12%2F31%2F2019
 
-    // Create crawler.
     const crawler = new Apify.PuppeteerCrawler({
+        maxRequestsPerCrawl: 4,
         requestQueue,
 
         // This page is executed for each request.
         // If request failes then it's retried 3 times.
         // Parameter page is Puppeteers page object with loaded page.
-        handlePageFunction: getEventData,
+        handlePageFunction: async ({page, request}) => {
+            // this if statement is here purely for part 1
+            if (await page.url() === 'https://www.visithoustontexas.com/events/') {
+                await getEventList({page, request});
+            } else await getEventData({page, request});
+        },
 
         // If request failed 4 times then this function is executed.
-        handleFailedRequestFunction: async ({ request }) => {
+        handleFailedRequestFunction: async ({request}) => {
             console.log(`Request ${request.url} failed 4 times`);
         },
     });
 
     // Run crawler.
     await crawler.run();
-
 });
 
+const getEventData = async ({page, request}) => {
 
-
-const getEventData = async ({ page, request }) => {
-
-     // parse address
+    // parse address
     // todo: parse by regex
 
     let adr = await page.$eval('.adrs', el => el.innerText);
@@ -41,8 +46,8 @@ const getEventData = async ({ page, request }) => {
     const street = adrSplit[0].trim();
     const adrSplitTwo = adrSplit[1].split(',');
     const city = adrSplitTwo[0].trim();
-    const state = adrSplitTwo[1].trim().substring(0,2);
-    const zip = adrSplitTwo[1].trim().substring(adrSplitTwo[1].length-6);
+    const state = adrSplitTwo[1].trim().substring(0, 2);
+    const zip = adrSplitTwo[1].trim().substring(adrSplitTwo[1].length - 6);
 
     // parse event details without classes
     // store list of details in an array
@@ -83,33 +88,33 @@ const getEventData = async ({ page, request }) => {
     date = await page.$eval('.dates', el => el.innerText);
     const dateSplit = date.split('-');
     const timeSplit = times.split(' to ');
-    let startDate = dateSplit[0].trim().replace(',','');
-    let endDate = dateSplit[1].trim().replace(',','');
+    let startDate = dateSplit[0].trim().replace(',', '');
+    let endDate = dateSplit[1].trim().replace(',', '');
     startDate = moment.parseZone(startDate + ' ' + timeSplit[0], 'MMM DD YYYY hh:mm a').toISOString();
     endDate = moment.parseZone(endDate + ' ' + timeSplit[1], 'MMM DD YYYY hh:mm a').toISOString();
 
     // save details in an object
     let event = {
-        url:	await page.url(),
-        description:	description,
-        date:	{
+        url: await page.url(),
+        description: description,
+        date: {
             startDate: startDate,
             endDate: endDate
         },
-        time:	times,
-        recurring:  recurring,
-        place:	{
-            street:	street,
-            city:	city,
-            state:	state,
-            postal:	zip,
+        time: times,
+        recurring: recurring,
+        place: {
+            street: street,
+            city: city,
+            state: state,
+            postal: zip,
         },
-        details:	{
-            contact:	contact,
-            phone:	phone,
-            admission:	admission,
+        details: {
+            contact: contact,
+            phone: phone,
+            admission: admission,
         },
-        timestamp:  timestamp
+        timestamp: timestamp
     };
 
     // Log data (util is a tool that nicely formats objects in the console)
@@ -126,5 +131,32 @@ const getEventData = async ({ page, request }) => {
     }));
 
     // Occasional error: process cannot be terminated; No noticeable bug currently
+};
 
+const getEventList = async ({page, request}) => {
+    let file = fs.createWriteStream('events.txt');
+    hasNextPage = true;
+
+    while (hasNextPage) {
+        listOfTitles = await page.evaluate(() => {
+            const tempTitles = Array.from(document.querySelectorAll('.eventItem div.title a'));
+            return tempTitles.map(el => el.href);
+        });
+
+        // write to file and console
+        file.on('error', function (err) {
+            throw error;
+        });
+        listOfTitles.forEach(function(link) {
+            file.write(link + '\n');
+        });
+        console.log(listOfTitles);
+
+        if (await page.$('.sharedPagerContainer a.arrow.next.disabled') === null) {
+            await page.click('.sharedPagerContainer a.arrow.next');
+            // todo: use waitForNavigation instead of band-aid fix
+            await page.waitFor(1500);
+        } else hasNextPage = false;
+    }
+    file.end();
 };
