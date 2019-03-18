@@ -13,7 +13,7 @@ Apify.main(async () => {
     // https://www.visithoustontexas.com/events/?endDate=12%2F31%2F2019
 
     const crawler = new Apify.PuppeteerCrawler({
-        //maxRequestsPerCrawl: 4,
+        //maxRequestsPerCrawl: 10,
         requestQueue,
 
         // This page is executed for each request.
@@ -23,20 +23,20 @@ Apify.main(async () => {
 
             if (await page.url() === 'https://www.visithoustontexas.com/events/') {
                 let file = fs.createWriteStream('events.txt');
-                hasNextPage = true;
+                let hasNextPage = true;
 
                 while (hasNextPage) {
                     // grab event links into array
-                    listOfLinks = await page.evaluate(() => {
+                    let listOfLinks = await page.evaluate(() => {
                         const tempTitles = Array.from(document.querySelectorAll('.eventItem div.title a'));
                         return tempTitles.map(el => el.href);
                     });
 
                     // write to file and console
                     file.on('error', function (err) {
-                        throw error;
+                        throw err;
                     });
-                    listOfLinks.forEach(async function(link) {
+                    listOfLinks.forEach(async function (link) {
                         file.write(link + '\n');
                         await requestQueue.addRequest(new Apify.Request({url: link}));
                     });
@@ -52,7 +52,7 @@ Apify.main(async () => {
 
                 file.end();
             } else
-                // this is here purely for part 1
+            // this is here purely for part 1
                 await getEventData({page, request});
         },
 
@@ -93,7 +93,7 @@ const getEventData = async ({page, request}) => {
     timestamp = new Date().toISOString();
 
     // logic to parse each line
-    for (i = 0; i < infoList.length; i++) {
+    for (let i = 0; i < infoList.length; i++) {
         switch (String(infoList[i].substring(0, infoList[i].indexOf(':')))) {
             case 'Contact':
                 contact = infoList[i].substring(infoList[i].indexOf(':') + 2);
