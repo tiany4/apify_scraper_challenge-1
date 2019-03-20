@@ -32,7 +32,7 @@ Apify.main(async () => {
                         return tempTitles.map(el => el.href);
                     });
 
-                    // write to file and console
+                    // write to file
                     file.on('error', function (err) {
                         throw err;
                     });
@@ -40,7 +40,6 @@ Apify.main(async () => {
                         file.write(link + '\n');
                         await requestQueue.addRequest(new Apify.Request({url: link}));
                     });
-                    console.log(listOfLinks[0]);
 
                     // check if there are more pages
                     if (await page.$('.sharedPagerContainer a.arrow.next.disabled') === null) {
@@ -158,17 +157,17 @@ const getEventData = async ({page, request}) => {
     };
 
     // Log data (util is a tool that nicely formats objects in the console)
-    console.log(util.inspect(event, false, null));
+    //console.log(util.inspect(event, false, null));
+    console.log(description);
 
     // save event details to file
     // remove special characters from timestamp
     timestamp = timestamp.replace(/[^\w\s]/g, '_');
     description = description.replace(/[^\w\s]/g, '_');
 
-    let filename = description + timestamp + '.json';
+    let filename = timestamp + ' ' + description + '.json';
     fs.writeFile(filename, JSON.stringify(event), (err => {
         if (err) throw err;
-        console.log('Event is written to ' + description + '.json');
     }));
 
     // Occasional error: process cannot be terminated; No noticeable bug currently
